@@ -157,21 +157,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         "isTrailler": false,
         "languageId": 1,
         "captionFileName": "English",
-        "captionFilePath": "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/en.vtt?Expires=1774366843&Signature=jVLAthgl~BCXImSi3kQblSqiBDhdjzlxrxqwmllr-~lJuKa6kiVezLER7ivEA~gVLAPwJj5fdwAG9E0hD8sKKHSkzSOHNLY0TgNLldL011Q3A6UcdHvc4jrRj98uGA6ogLjLye0d-NQLGOe8fN6qZ3StfvwQRXPE~N6eHtYCfovAOmxTq8Jcrq4t888OfD-LEhlFPYLUecRtMQthvnjwR2U6u5a1TZ7A4AL24~i2t1b2ETXy9GONvbI~Fu6evY-z-wea98A68BbU5j9YnCXYC84pjrr~CIB9wxf9FMJwV3lEFuGzYLTc50wsmeIPjyfPZREymtBrxT92lOnnnV-CKQ__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67",
+        "captionFilePath":
+            "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/en.vtt?Expires=1774366843&Signature=jVLAthgl~BCXImSi3kQblSqiBDhdjzlxrxqwmllr-~lJuKa6kiVezLER7ivEA~gVLAPwJj5fdwAG9E0hD8sKKHSkzSOHNLY0TgNLldL011Q3A6UcdHvc4jrRj98uGA6ogLjLye0d-NQLGOe8fN6qZ3StfvwQRXPE~N6eHtYCfovAOmxTq8Jcrq4t888OfD-LEhlFPYLUecRtMQthvnjwR2U6u5a1TZ7A4AL24~i2t1b2ETXy9GONvbI~Fu6evY-z-wea98A68BbU5j9YnCXYC84pjrr~CIB9wxf9FMJwV3lEFuGzYLTc50wsmeIPjyfPZREymtBrxT92lOnnnV-CKQ__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67",
         "captionUuid": "83d12f69-7192-4021-8c18-312eaaaa8013"
       },
       {
         "isTrailler": false,
         "languageId": 2,
         "captionFileName": "Nepali",
-        "captionFilePath": "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/np.vtt?Expires=1774366843&Signature=WrT3fHZOiN05Q5-NHu5bh8dz~VXWk-yxLLYYHWFbm-uMeNWPirwAMHrDY2skx-lGuXCY-yfyKMHxepxif6a5zbjnoApxUI86mR14PLnFeYn4emi1fYCYSjbJEFp27gAO9uOGrsK3gGBSc3X~wj8-Zpq7gEBBV49ZLlq89jGumOI5VCu90AvrTUsZzh3EGHLieHgqB86PGDwHtpbJeLr7Z-VxPgjxXyBfrkeBN0iKlBrQG76zf5gZTLexcH2dQsd70UXa2H7iC852oOULYIdQJav9GgyJyDEoYo4A53dQb0lNgkm90G-smgcWC-8dfZQcG8MEqakRMjTVnnkyZ8NDzg__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67",
+        "captionFilePath":
+            "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/np.vtt?Expires=1774366843&Signature=WrT3fHZOiN05Q5-NHu5bh8dz~VXWk-yxLLYYHWFbm-uMeNWPirwAMHrDY2skx-lGuXCY-yfyKMHxepxif6a5zbjnoApxUI86mR14PLnFeYn4emi1fYCYSjbJEFp27gAO9uOGrsK3sGBSc3X~wj8-Zpq7gEBBV49ZLlq89jGumOI5VCu90AvrTUsZzh3EGHLieHgqB86PGDwHtpbJeLr7Z-VxPgjxXyBfrkeBN0iKlBrQG76zf5gZTLexcH2dQsd70UXa2H7iC852oOULYIdQJav9GgyJyDEoYo4A53dQb0lNgkm90G-smgcWC-8dfZQcG8MEqakRMjTVnnkyZ8NDzg__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67",
         "captionUuid": "7ffbf156-856c-446d-971e-52c10766a9d4"
       }
     ];
 
-
     _captions = captionsJson.map((json) => Caption.fromJson(json)).toList();
-    
+
     // Default to first caption (usually English)
     if (_captions.isNotEmpty) {
       _selectedCaption = _captions.first;
@@ -179,7 +180,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
-// Load VTT file content
+  // Load VTT file content
   Future<void> _loadSubtitleFile(String url) async {
     try {
       final response = await http.get(Uri.parse(url));
@@ -289,6 +290,72 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+// Add this method to switch between subtitle languages
+  void switchSubtitleLanguage(Caption newCaption) {
+    setState(() {
+      _selectedCaption = newCaption;
+      _subtitles = []; // Clear current subtitles
+      _currentSubtitle = null; // Reset current subtitle
+    });
+
+    // Load the new subtitle file
+    _loadSubtitleFile(newCaption.captionFilePath);
+  }
+
+  void _showSubtitleMenu(BuildContext context) {
+    // Add "None" option at the beginning of the list
+    final List<PopupMenuEntry<String>> menuItems = [
+      const PopupMenuItem<String>(
+        value: 'none',
+        child: Text('None'),
+      ),
+      const PopupMenuDivider(),
+    ];
+
+    // Add all caption languages
+    for (var caption in _captions) {
+      menuItems.add(
+        PopupMenuItem<String>(
+          value: caption.captionFilePath,
+          child: Text(caption.captionFileName),
+        ),
+      );
+    }
+
+    // Show the popup menu
+    showMenu<String>(
+      context: context,
+      position: const RelativeRect.fromLTRB(100, 80, 0, 100), // Adjust position as needed
+      items: menuItems,
+    ).then((value) {
+      if (value == null) return;
+
+      if (value == 'none') {
+        // Disable subtitles
+        setState(() {
+          _subtitlesEnabled = false;
+          _currentSubtitle = null;
+        });
+      } else {
+        // Find the selected caption
+        for (var caption in _captions) {
+          if (caption.captionFilePath == value) {
+            setState(() {
+              _subtitlesEnabled = true;
+              _selectedCaption = caption;
+              _subtitles = [];
+              _currentSubtitle = null;
+            });
+
+            // Load the new subtitle file
+            _loadSubtitleFile(caption.captionFilePath);
+            break;
+          }
+        }
+      }
+    });
+  }
+
   void _createChewieController() {
     _chewieController = ChewieController(
       videoPlayerController: _videoPlayerController,
@@ -298,14 +365,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       allowMuting: true,
       showOptions: false, // Disable default options dialog
       customControls: const MaterialControls(), // Use modified controls
-
-      additionalOptions: (context) => [
-        OptionItem(
-          onTap: toggleSubtitles,
-          iconData: _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
-          title: _subtitlesEnabled ? 'Disable Subtitles' : 'Enable Subtitles',
-        ),
-      ],
       // Hide default controls so we can show our own
       showControlsOnInitialize: false,
     );
@@ -324,18 +383,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       setState(() {
         _isSliderAndButtonsVisible = false;
       });
-    });
-  }
-
-  void toggleSubtitles() {
-    setState(() {
-      _subtitlesEnabled = !_subtitlesEnabled;
-      if (!_subtitlesEnabled) {
-        _currentSubtitle = null;
-      } else {
-        // Re-sync to find current subtitle
-        _subtitleSync();
-      }
     });
   }
 
@@ -597,7 +644,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           _showBrightnessControl();
                         },
                         child: const Icon(Icons.brightness_6,
-                            color: Colors.white, size: 30)),
+                            color: Colors.white, size: 25)),
                     Opacity(
                       opacity: _showBrightnessSlider ? 1 : 0,
                       child: RotatedBox(
@@ -635,7 +682,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                                 ? Icons.volume_down
                                 : Icons.volume_up,
                         color: Colors.white,
-                        size: 30,
+                        size: 25,
                       ),
                     ),
                     // const SizedBox(width: 8),
@@ -725,27 +772,32 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Widget _buildScreenSubtitlesAndScreenLockOverlay() {
-    return Positioned(
-      top: 20,
-      left: 0,
-      right: 10,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          IconButton(
-            icon: Icon(
-              _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
-              color: Colors.white,
-              size: 24,
+    return Visibility(
+      visible: _isSliderAndButtonsVisible,
+      child: Positioned(
+        top: 20,
+        left: 0,
+        right: 10,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            IconButton(
+              icon: Icon(
+                _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
+                color: Colors.white,
+                size: 24,
+              ),
+              onPressed: () {
+                _showSubtitleMenu(context);
+              },
             ),
-            onPressed: toggleSubtitles,
-          ),
-          // Lock screen
-          IconButton(
-            icon: const Icon(Icons.lock_outline, color: Colors.white),
-            onPressed: toggleScreenLock,
-          ),
-        ],
+            // Lock screen
+            IconButton(
+              icon: const Icon(Icons.lock_outline, color: Colors.white),
+              onPressed: toggleScreenLock,
+            ),
+          ],
+        ),
       ),
     );
   }
