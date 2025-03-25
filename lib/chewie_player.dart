@@ -12,7 +12,7 @@ class VideoPlayerScreen extends StatefulWidget {
   const VideoPlayerScreen({super.key});
 
   @override
-  _VideoPlayerScreenState createState() => _VideoPlayerScreenState();
+  State<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
 }
 
 // Subtitle data model
@@ -35,9 +35,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   double _volume = 0.5;
   double _scale = 1.0;
   double _initialScale = 1.0;
-  // Add these variables to your _VideoPlayerScreenState class
+
   bool _showVolumeSlider = false;
   bool _showBrightnessSlider = false;
+
+
   Timer? _volumeSliderTimer;
   Timer? _brightnessSliderTimer;
 
@@ -300,11 +302,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   void _resetSliderAndButtonsVisiblity() {
+    //video progress slider and play pause buttons also the brightness and volume ICONS
     setState(() {
       _isSliderAndButtonsVisible = true;
     });
     _sliderAndButtonsVisible?.cancel();
-    _sliderAndButtonsVisible = Timer(const Duration(seconds: 3), () {
+    _sliderAndButtonsVisible = Timer(const Duration(seconds: 5), () {
       if (!mounted) return;
       setState(() {
         _isSliderAndButtonsVisible = false;
@@ -396,7 +399,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
-  // Add these methods to your _VideoPlayerScreenState class
   void _skipForward() {
     final newPosition =
         _videoPlayerController.value.position + const Duration(seconds: 10);
@@ -419,7 +421,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
-// Replace your existing play/pause button row with this
   Widget _buildPlaybackControls() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -565,91 +566,93 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Widget _buildScreenBrightnessAndVolumeOverlay() {
-    return Positioned(
-      top: 100,
-      left: 0,
-      right: 0,
-      child: Column(
-        // mainAxisSize: MainAxisSize.min,
-        children: [
-          // Brightness control
-          Row(
-            // mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                children: [
-                  GestureDetector(
+    return Visibility(
+      visible: _isSliderAndButtonsVisible,
+      child: Positioned(
+        top: 80,
+        left: 0,
+        right: 0,
+        child: Column(
+          // mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  children: [
+                    GestureDetector(
+                        onTap: () {
+                          _showBrightnessControl();
+                        },
+                        child: const Icon(Icons.brightness_6,
+                            color: Colors.white, size: 30)),
+                    Opacity(
+                      opacity: _showBrightnessSlider ? 1 : 0,
+                      child: RotatedBox(
+                        quarterTurns: 3,
+                        child: SliderTheme(
+                          data: const SliderThemeData(
+                            thumbColor: Colors.white,
+                            activeTrackColor: Colors.white70,
+                            inactiveTrackColor: Colors.white30,
+                            trackHeight: 2.0,
+                            thumbShape:
+                                RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                          ),
+                          child: Slider(
+                            value: _brightness,
+                            onChanged: changeBrightness,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+      
+                // Volume control
+                Column(
+                  children: [
+                    GestureDetector(
                       onTap: () {
-                        _showBrightnessControl();
+                        _showVolumeControl();
                       },
-                      child: const Icon(Icons.brightness_6,
-                          color: Colors.white, size: 30)),
-                  Opacity(
-                    opacity: _showBrightnessSlider ? 1 : 0,
-                    child: RotatedBox(
-                      quarterTurns: 3,
-                      child: SliderTheme(
-                        data: const SliderThemeData(
-                          thumbColor: Colors.white,
-                          activeTrackColor: Colors.white70,
-                          inactiveTrackColor: Colors.white30,
-                          trackHeight: 2.0,
-                          thumbShape:
-                              RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                        ),
-                        child: Slider(
-                          value: _brightness,
-                          onChanged: changeBrightness,
+                      child: Icon(
+                        _volume == 0
+                            ? Icons.volume_off
+                            : _volume < 0.5
+                                ? Icons.volume_down
+                                : Icons.volume_up,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                    // const SizedBox(width: 8),
+                    Opacity(
+                      opacity: _showVolumeSlider ? 1 : 0,
+                      child: RotatedBox(
+                        quarterTurns: 3,
+                        child: SliderTheme(
+                          data: const SliderThemeData(
+                            thumbColor: Colors.white,
+                            activeTrackColor: Colors.white70,
+                            inactiveTrackColor: Colors.white30,
+                            trackHeight: 2.0,
+                            thumbShape:
+                                RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                          ),
+                          child: Slider(
+                            value: _volume,
+                            onChanged: changeVolume,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-
-              // Volume control
-              Column(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      _showVolumeControl();
-                    },
-                    child: Icon(
-                      _volume == 0
-                          ? Icons.volume_off
-                          : _volume < 0.5
-                              ? Icons.volume_down
-                              : Icons.volume_up,
-                      color: Colors.white,
-                      size: 30,
-                    ),
-                  ),
-                  // const SizedBox(width: 8),
-                  Opacity(
-                    opacity: _showVolumeSlider ? 1 : 0,
-                    child: RotatedBox(
-                      quarterTurns: 3,
-                      child: SliderTheme(
-                        data: const SliderThemeData(
-                          thumbColor: Colors.white,
-                          activeTrackColor: Colors.white70,
-                          inactiveTrackColor: Colors.white30,
-                          trackHeight: 2.0,
-                          thumbShape:
-                              RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                        ),
-                        child: Slider(
-                          value: _volume,
-                          onChanged: changeVolume,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
