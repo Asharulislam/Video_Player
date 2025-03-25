@@ -15,19 +15,10 @@ class VideoPlayerScreen extends StatefulWidget {
   State<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
 }
 
-// Subtitle data model
-class Subtitle {
-  final Duration start;
-  final Duration end;
-  final String text;
-
-  Subtitle({required this.start, required this.end, required this.text});
-}
-
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   late VideoPlayerController _videoPlayerController;
   ChewieController? _chewieController;
-  bool _subtitlesEnabled = true;
+
   bool _isScreenLocked = false;
   bool _isSliderAndButtonsVisible = false;
   Timer? _sliderAndButtonsVisible;
@@ -39,14 +30,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _showVolumeSlider = false;
   bool _showBrightnessSlider = false;
 
-
   Timer? _volumeSliderTimer;
   Timer? _brightnessSliderTimer;
 
-  // Subtitle-related variables
+  // Variables
+  List<Caption> _captions = [];
+  Caption? _selectedCaption;
   List<Subtitle> _subtitles = [];
   Subtitle? _currentSubtitle;
-  Timer? _subtitleTimer;
+  bool _subtitlesEnabled = true;
 
   @override
   void initState() {
@@ -54,7 +46,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _initializePlayer();
     _initializeVolume();
     _initializeBrightness();
-    _loadSubtitles(); // Load subtitles
+    setupCaptions(); // Load subtitles
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -157,102 +149,123 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
-  // Load and parse subtitles
-  Future<void> _loadSubtitles() async {
-    try {
-      // Example: Load SRT from network
-      // Replace this URL with your subtitle file URL
-      final response = await http.get(Uri.parse(
-          "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/en.vtt?Expires=1774366843&Signature=jVLAthgl~BCXImSi3kQblSqiBDhdjzlxrxqwmllr-~lJuKa6kiVezLER7ivEA~gVLAPwJj5fdwAG9E0hD8sKKHSkzSOHNLY0TgNLldL011Q3A6UcdHvc4jrRj98uGA6ogLjLye0d-NQLGOe8fN6qZ3StfvwQRXPE~N6eHtYCfovAOmxTq8Jcrq4t888OfD-LEhlFPYLUecRtMQthvnjwR2U6u5a1TZ7A4AL24~i2t1b2ETXy9GONvbI~Fu6evY-z-wea98A68BbU5j9YnCXYC84pjrr~CIB9wxf9FMJwV3lEFuGzYLTc50wsmeIPjyfPZREymtBrxT92lOnnnV-CKQ__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67"));
+  // Called in initState or whenever receiving the captions
+  void setupCaptions() {
+    // Normally you would get this from your API
+    final captionsJson = [
+      {
+        "isTrailler": false,
+        "languageId": 1,
+        "captionFileName": "English",
+        "captionFilePath": "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/en.vtt?Expires=1774366843&Signature=jVLAthgl~BCXImSi3kQblSqiBDhdjzlxrxqwmllr-~lJuKa6kiVezLER7ivEA~gVLAPwJj5fdwAG9E0hD8sKKHSkzSOHNLY0TgNLldL011Q3A6UcdHvc4jrRj98uGA6ogLjLye0d-NQLGOe8fN6qZ3StfvwQRXPE~N6eHtYCfovAOmxTq8Jcrq4t888OfD-LEhlFPYLUecRtMQthvnjwR2U6u5a1TZ7A4AL24~i2t1b2ETXy9GONvbI~Fu6evY-z-wea98A68BbU5j9YnCXYC84pjrr~CIB9wxf9FMJwV3lEFuGzYLTc50wsmeIPjyfPZREymtBrxT92lOnnnV-CKQ__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67",
+        "captionUuid": "83d12f69-7192-4021-8c18-312eaaaa8013"
+      },
+      {
+        "isTrailler": false,
+        "languageId": 2,
+        "captionFileName": "Nepali",
+        "captionFilePath": "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/np.vtt?Expires=1774366843&Signature=WrT3fHZOiN05Q5-NHu5bh8dz~VXWk-yxLLYYHWFbm-uMeNWPirwAMHrDY2skx-lGuXCY-yfyKMHxepxif6a5zbjnoApxUI86mR14PLnFeYn4emi1fYCYSjbJEFp27gAO9uOGrsK3gGBSc3X~wj8-Zpq7gEBBV49ZLlq89jGumOI5VCu90AvrTUsZzh3EGHLieHgqB86PGDwHtpbJeLr7Z-VxPgjxXyBfrkeBN0iKlBrQG76zf5gZTLexcH2dQsd70UXa2H7iC852oOULYIdQJav9GgyJyDEoYo4A53dQb0lNgkm90G-smgcWC-8dfZQcG8MEqakRMjTVnnkyZ8NDzg__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67",
+        "captionUuid": "7ffbf156-856c-446d-971e-52c10766a9d4"
+      }
+    ];
 
+
+    _captions = captionsJson.map((json) => Caption.fromJson(json)).toList();
+    
+    // Default to first caption (usually English)
+    if (_captions.isNotEmpty) {
+      _selectedCaption = _captions.first;
+      _loadSubtitleFile(_selectedCaption!.captionFilePath);
+    }
+  }
+
+// Load VTT file content
+  Future<void> _loadSubtitleFile(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        final String srtContent = response.body;
-        _parseSubtitles(srtContent);
+        _parseVttSubtitles(response.body);
       } else {
         debugPrint('Failed to load subtitles: ${response.statusCode}');
       }
-
-      // Alternative: Load SRT from assets
-      // final String srtContent = await rootBundle.loadString('assets/subtitles.srt');
-      // _parseSubtitles(srtContent);
     } catch (e) {
       debugPrint('Error loading subtitles: $e');
     }
   }
 
-  // Parse SRT format subtitles
-  void _parseSubtitles(String srtContent) {
+// Parse VTT format
+  void _parseVttSubtitles(String vttContent) {
     final List<Subtitle> subtitles = [];
+    final lines = vttContent.split('\n');
+    int i = 0;
 
-    // Split by double newline to get each subtitle block
-    final blocks = srtContent.split('\r\n\r\n');
-    if (blocks.length == 1) {
-      // Try with just newline if double newline didn't work
-      final newBlocks = srtContent.split('\n\n');
-      if (newBlocks.length > blocks.length) {
-        blocks.clear();
-        blocks.addAll(newBlocks);
-      }
+    // Skip WebVTT header
+    while (i < lines.length && !lines[i].contains('-->')) {
+      i++;
     }
 
-    for (var block in blocks) {
-      final lines = block.split('\n');
-      if (lines.length < 3) continue;
+    // Parse cues
+    while (i < lines.length) {
+      if (lines[i].contains('-->')) {
+        final timeLine = lines[i].trim();
+        final timeComponents = timeLine.split(' --> ');
 
-      // Skip the subtitle number (first line)
+        if (timeComponents.length == 2) {
+          final startTime = _parseVttTime(timeComponents[0]);
+          final endTime = _parseVttTime(timeComponents[1]);
 
-      // Parse the time line (second line)
-      final timeLine = lines[1].trim();
-      final timeComponents = timeLine.split(' --> ');
-      if (timeComponents.length != 2) continue;
+          i++;
+          String text = '';
+          while (i < lines.length && lines[i].trim().isNotEmpty) {
+            if (text.isNotEmpty) text += '\n';
+            text += lines[i].trim();
+            i++;
+          }
 
-      final startTime = _parseSrtTime(timeComponents[0]);
-      final endTime = _parseSrtTime(timeComponents[1]);
-
-      // Join the rest of the lines as the subtitle text
-      final subtitleText = lines.sublist(2).join('\n').trim();
-
-      subtitles.add(Subtitle(
-        start: startTime,
-        end: endTime,
-        text: subtitleText,
-      ));
+          if (text.isNotEmpty) {
+            subtitles.add(Subtitle(
+              start: startTime,
+              end: endTime,
+              text: text,
+            ));
+          }
+        }
+      }
+      i++;
     }
 
     setState(() {
       _subtitles = subtitles;
     });
-
-    debugPrint('Loaded ${subtitles.length} subtitles');
   }
 
-  // Parse SRT time format (00:00:00,000)
-  Duration _parseSrtTime(String timeString) {
-    final cleaned = timeString.trim().replaceAll(',', '.');
+// Parse VTT time format (00:00:00.000)
+  Duration _parseVttTime(String timeString) {
+    final cleaned = timeString.trim();
     final parts = cleaned.split(':');
 
-    if (parts.length != 3) {
-      return Duration.zero;
+    int hours = 0;
+    int minutes = 0;
+    double seconds = 0;
+
+    if (parts.length == 3) {
+      hours = int.parse(parts[0]);
+      minutes = int.parse(parts[1]);
+      seconds = double.parse(parts[2]);
+    } else if (parts.length == 2) {
+      minutes = int.parse(parts[0]);
+      seconds = double.parse(parts[1]);
     }
-
-    int hours = int.parse(parts[0]);
-    int minutes = int.parse(parts[1]);
-
-    final secondsParts = parts[2].split('.');
-    int seconds = int.parse(secondsParts[0]);
-    int milliseconds = secondsParts.length > 1
-        ? int.parse(secondsParts[1].padRight(3, '0').substring(0, 3))
-        : 0;
 
     return Duration(
       hours: hours,
       minutes: minutes,
-      seconds: seconds,
-      milliseconds: milliseconds,
+      seconds: seconds.floor(),
+      milliseconds: ((seconds - seconds.floor()) * 1000).round(),
     );
   }
 
-  // Synchronize subtitles with video position
+// Sync subtitles with video - add this to video player listener
   void _subtitleSync() {
     if (!_subtitlesEnabled || _subtitles.isEmpty) {
       _currentSubtitle = null;
@@ -261,7 +274,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     final position = _videoPlayerController.value.position;
 
-    // Find the subtitle that should be displayed at the current position
     Subtitle? subtitle;
     for (var sub in _subtitles) {
       if (position >= sub.start && position <= sub.end) {
@@ -608,7 +620,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     ),
                   ],
                 ),
-      
+
                 // Volume control
                 Column(
                   children: [
@@ -751,10 +763,40 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _videoPlayerController.removeListener(_subtitleSync);
     _videoPlayerController.dispose();
     _chewieController?.dispose();
-    _subtitleTimer?.cancel();
     _volumeSliderTimer?.cancel();
     _brightnessSliderTimer?.cancel();
     WakelockPlus.disable();
     super.dispose();
   }
+}
+
+// Simple caption model
+class Caption {
+  final String captionFileName;
+  final String captionFilePath;
+
+  Caption({
+    required this.captionFileName,
+    required this.captionFilePath,
+  });
+
+  factory Caption.fromJson(Map<String, dynamic> json) {
+    return Caption(
+      captionFileName: json['captionFileName'] ?? '',
+      captionFilePath: json['captionFilePath'] ?? '',
+    );
+  }
+}
+
+// Subtitle model for parsed VTT subtitles
+class Subtitle {
+  final Duration start;
+  final Duration end;
+  final String text;
+
+  Subtitle({
+    required this.start,
+    required this.end,
+    required this.text,
+  });
 }
