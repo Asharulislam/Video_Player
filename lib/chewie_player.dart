@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:http/http.dart' as http;
 import 'package:screen_brightness/screen_brightness.dart';
@@ -52,6 +53,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _initializeVolume();
     _initializeBrightness();
     _loadSubtitles(); // Load subtitles
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.immersiveSticky); // Hide system UI
     // Keep screen on during video playback
     WakelockPlus.enable();
   }
@@ -152,8 +160,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     try {
       // Example: Load SRT from network
       // Replace this URL with your subtitle file URL
-      final response =
-          await http.get(Uri.parse("https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/en.vtt?Expires=1774366843&Signature=jVLAthgl~BCXImSi3kQblSqiBDhdjzlxrxqwmllr-~lJuKa6kiVezLER7ivEA~gVLAPwJj5fdwAG9E0hD8sKKHSkzSOHNLY0TgNLldL011Q3A6UcdHvc4jrRj98uGA6ogLjLye0d-NQLGOe8fN6qZ3StfvwQRXPE~N6eHtYCfovAOmxTq8Jcrq4t888OfD-LEhlFPYLUecRtMQthvnjwR2U6u5a1TZ7A4AL24~i2t1b2ETXy9GONvbI~Fu6evY-z-wea98A68BbU5j9YnCXYC84pjrr~CIB9wxf9FMJwV3lEFuGzYLTc50wsmeIPjyfPZREymtBrxT92lOnnnV-CKQ__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67"));
+      final response = await http.get(Uri.parse(
+          "https://nplflix-content-secure.bizalpha.ca/d8037f38-a1e3-495c-95c1-9f815cae72bb/videos/full/captions/en.vtt?Expires=1774366843&Signature=jVLAthgl~BCXImSi3kQblSqiBDhdjzlxrxqwmllr-~lJuKa6kiVezLER7ivEA~gVLAPwJj5fdwAG9E0hD8sKKHSkzSOHNLY0TgNLldL011Q3A6UcdHvc4jrRj98uGA6ogLjLye0d-NQLGOe8fN6qZ3StfvwQRXPE~N6eHtYCfovAOmxTq8Jcrq4t888OfD-LEhlFPYLUecRtMQthvnjwR2U6u5a1TZ7A4AL24~i2t1b2ETXy9GONvbI~Fu6evY-z-wea98A68BbU5j9YnCXYC84pjrr~CIB9wxf9FMJwV3lEFuGzYLTc50wsmeIPjyfPZREymtBrxT92lOnnnV-CKQ__&Key-Pair-Id=APKAZ3MGNFNZBDODWL67"));
 
       if (response.statusCode == 200) {
         final String srtContent = response.body;
@@ -276,7 +284,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       allowMuting: true,
       showOptions: false, // Disable default options dialog
       customControls: const MaterialControls(), // Use modified controls
-     
+
       additionalOptions: (context) => [
         OptionItem(
           onTap: toggleSubtitles,
