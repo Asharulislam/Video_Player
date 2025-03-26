@@ -20,15 +20,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   ChewieController? _chewieController;
 
   bool _isScreenLocked = false;
-  bool _isSliderAndButtonsVisible = false;
-  Timer? _sliderAndButtonsVisible;
+  bool _isMaterialControlles = false;
+  Timer? _materialControllesTimer;
   double _brightness = 0.5;
   double _volume = 0.5;
   double _scale = 1.0;
   double _initialScale = 1.0;
-
-  bool _showVolumeSlider = false;
-  bool _showBrightnessSlider = false;
 
   Timer? _volumeSliderTimer;
   Timer? _brightnessSliderTimer;
@@ -56,41 +53,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         SystemUiMode.immersiveSticky); // Hide system UI
     // Keep screen on during video playback
     WakelockPlus.enable();
-  }
-
-  // Add these methods to your _VideoPlayerScreenState class
-  void _showVolumeControl() {
-    setState(() {
-      _showVolumeSlider = true;
-      _resetVolumeSliderTimer();
-    });
-  }
-
-  void _showBrightnessControl() {
-    setState(() {
-      _showBrightnessSlider = true;
-      _resetBrightnessSliderTimer();
-    });
-  }
-
-  void _resetBrightnessSliderTimer() {
-    _brightnessSliderTimer?.cancel();
-    _brightnessSliderTimer = Timer(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      setState(() {
-        _showBrightnessSlider = false;
-      });
-    });
-  }
-
-  void _resetVolumeSliderTimer() {
-    _volumeSliderTimer?.cancel();
-    _volumeSliderTimer = Timer(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      setState(() {
-        _showVolumeSlider = false;
-      });
-    });
   }
 
   Future<void> _initializeVolume() async {
@@ -325,7 +287,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     // Show the popup menu
     showMenu<String>(
       context: context,
-      position: const RelativeRect.fromLTRB(100, 80, 0, 100), // Adjust position as needed
+      position: const RelativeRect.fromLTRB(
+          100, 80, 0, 100), // Adjust position as needed
       items: menuItems,
     ).then((value) {
       if (value == null) return;
@@ -375,13 +338,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void _resetSliderAndButtonsVisiblity() {
     //video progress slider and play pause buttons also the brightness and volume ICONS
     setState(() {
-      _isSliderAndButtonsVisible = true;
+      _isMaterialControlles = true;
     });
-    _sliderAndButtonsVisible?.cancel();
-    _sliderAndButtonsVisible = Timer(const Duration(seconds: 5), () {
+    _materialControllesTimer?.cancel();
+    _materialControllesTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted) return;
       setState(() {
-        _isSliderAndButtonsVisible = false;
+        _isMaterialControlles = false;
       });
     });
   }
@@ -626,7 +589,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Widget _buildScreenBrightnessAndVolumeOverlay() {
     return Visibility(
-      visible: _isSliderAndButtonsVisible,
+      visible: _isMaterialControlles,
       child: Positioned(
         top: 80,
         left: 0,
@@ -639,29 +602,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               children: [
                 Column(
                   children: [
-                    GestureDetector(
-                        onTap: () {
-                          _showBrightnessControl();
-                        },
-                        child: const Icon(Icons.brightness_6,
-                            color: Colors.white, size: 25)),
-                    Opacity(
-                      opacity: _showBrightnessSlider ? 1 : 0,
-                      child: RotatedBox(
-                        quarterTurns: 3,
-                        child: SliderTheme(
-                          data: const SliderThemeData(
-                            thumbColor: Colors.white,
-                            activeTrackColor: Colors.white70,
-                            inactiveTrackColor: Colors.white30,
-                            trackHeight: 2.0,
-                            thumbShape:
-                                RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                          ),
-                          child: Slider(
-                            value: _brightness,
-                            onChanged: changeBrightness,
-                          ),
+                    const Icon(Icons.brightness_6,
+                        color: Colors.white, size: 25),
+                    RotatedBox(
+                      quarterTurns: 3,
+                      child: SliderTheme(
+                        data: const SliderThemeData(
+                          thumbColor: Colors.white,
+                          activeTrackColor: Colors.white70,
+                          inactiveTrackColor: Colors.white30,
+                          trackHeight: 2.0,
+                          thumbShape:
+                              RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                        ),
+                        child: Slider(
+                          value: _brightness,
+                          onChanged: changeBrightness,
                         ),
                       ),
                     ),
@@ -671,38 +627,30 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 // Volume control
                 Column(
                   children: [
-                    GestureDetector(
-                      onTap: () {
-                        _showVolumeControl();
-                      },
-                      child: Icon(
-                        _volume == 0
-                            ? Icons.volume_off
-                            : _volume < 0.5
-                                ? Icons.volume_down
-                                : Icons.volume_up,
-                        color: Colors.white,
-                        size: 25,
-                      ),
+                    Icon(
+                      _volume == 0
+                          ? Icons.volume_off
+                          : _volume < 0.5
+                              ? Icons.volume_down
+                              : Icons.volume_up,
+                      color: Colors.white,
+                      size: 25,
                     ),
                     // const SizedBox(width: 8),
-                    Opacity(
-                      opacity: _showVolumeSlider ? 1 : 0,
-                      child: RotatedBox(
-                        quarterTurns: 3,
-                        child: SliderTheme(
-                          data: const SliderThemeData(
-                            thumbColor: Colors.white,
-                            activeTrackColor: Colors.white70,
-                            inactiveTrackColor: Colors.white30,
-                            trackHeight: 2.0,
-                            thumbShape:
-                                RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                          ),
-                          child: Slider(
-                            value: _volume,
-                            onChanged: changeVolume,
-                          ),
+                    RotatedBox(
+                      quarterTurns: 3,
+                      child: SliderTheme(
+                        data: const SliderThemeData(
+                          thumbColor: Colors.white,
+                          activeTrackColor: Colors.white70,
+                          inactiveTrackColor: Colors.white30,
+                          trackHeight: 2.0,
+                          thumbShape:
+                              RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                        ),
+                        child: Slider(
+                          value: _volume,
+                          onChanged: changeVolume,
                         ),
                       ),
                     ),
@@ -718,7 +666,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Widget _buildScreenVideoProgressOverlay() {
     return Visibility(
-      visible: _isSliderAndButtonsVisible,
+      visible: _isMaterialControlles,
       child: Positioned(
         bottom: 0,
         left: 0,
@@ -773,28 +721,43 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Widget _buildScreenSubtitlesAndScreenLockOverlay() {
     return Visibility(
-      visible: _isSliderAndButtonsVisible,
+      visible: _isMaterialControlles,
       child: Positioned(
         top: 20,
         left: 0,
         right: 10,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              icon: Icon(
-                _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
-                color: Colors.white,
-                size: 24,
-              ),
-              onPressed: () {
-                _showSubtitleMenu(context);
+              icon: const Icon(Icons.close, color: Colors.white, size: 30),
+              onPressed: () async {
+                await SystemChrome.setPreferredOrientations([
+                  DeviceOrientation.portraitUp, // Force portrait before exiting
+                  DeviceOrientation.portraitDown,
+                ]);
+                Navigator.pop(context); // Close the screen
               },
             ),
-            // Lock screen
-            IconButton(
-              icon: const Icon(Icons.lock_outline, color: Colors.white),
-              onPressed: toggleScreenLock,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    _showSubtitleMenu(context);
+                  },
+                ),
+                // Lock screen
+                IconButton(
+                  icon: const Icon(Icons.lock_outline, color: Colors.white),
+                  onPressed: toggleScreenLock,
+                ),
+              ],
             ),
           ],
         ),
