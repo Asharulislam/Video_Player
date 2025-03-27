@@ -37,6 +37,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Subtitle? _currentSubtitle;
   bool _subtitlesEnabled = true;
 
+
+  // Ad-related variables
+bool _isAdPlaying = false;
+final List<int> _adTimePoints = [1, 30]; // Ad trigger points in seconds
+final List<String> _adVideoUrls = [
+  'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4',  // Video ad for 1-second mark
+  'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4'   // Video ad for 30-second mark
+];
+VideoPlayerController? _adVideoController;
+int? _lastAdPlayedAtSecond;
+Timer? _adCheckTimer;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +56,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _initializeVolume();
     _initializeBrightness();
     setupCaptions(); // Load subtitles
+    _initializeAdCheck(); // Initialize ad check timer
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -54,6 +67,115 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     // Keep screen on during video playback
     WakelockPlus.enable();
   }
+
+  // Initialize periodic ad check
+void _initializeAdCheck() {
+  _adCheckTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _checkAndShowAds();
+  });
+}
+
+void _checkAndShowAds() {
+  if (_isAdPlaying || !_videoPlayerController.value.isInitialized || !_videoPlayerController.value.isPlaying) {
+    return; // Don't check if ad is playing or video is not playing
+  }
+
+  final currentPositionInSeconds = _videoPlayerController.value.position.inSeconds;
+  
+  for (int i = 0; i < _adTimePoints.length; i++) {
+    if (currentPositionInSeconds == _adTimePoints[i] && _lastAdPlayedAtSecond != _adTimePoints[i]) {
+      _lastAdPlayedAtSecond = _adTimePoints[i];
+      _showVideoAd(i); // Pass index to know which ad to show
+      break;
+    }
+  }
+}
+
+Future<void> _showVideoAd(int adIndex) async {
+  // Pause the main video
+  _videoPlayerController.pause();
+  setState(() {
+    _isAdPlaying = true;
+  });
+
+  // Initialize ad video controller
+  _adVideoController = VideoPlayerController.network(_adVideoUrls[adIndex]);
+  
+  try {
+    // Initialize and start the ad video
+    await _adVideoController!.initialize();
+    _adVideoController!.play();
+    
+    // Show ad in full screen using dialog
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black,
+      transitionDuration: Duration.zero,
+      pageBuilder: (context, animation1, animation2) {
+        return SafeArea(
+          child: Container(
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
+            color: Colors.black,
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: _adVideoController!.value.aspectRatio,
+                child: VideoPlayer(_adVideoController!),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    // Listen for when the ad finishes playing
+    _adVideoController!.addListener(() {
+      if (_adVideoController!.value.position >= _adVideoController!.value.duration) {
+        // Video finished playing naturally
+        if (_isAdPlaying) {
+          Navigator.of(context).pop();
+          _cleanupAdController();
+          _resumeAfterAd();
+        }
+      }
+    });
+
+    // Fallback timer in case the video doesn't finish correctly
+    Timer(const Duration(seconds: 30), () {
+      if (_isAdPlaying) {
+        Navigator.of(context).pop();
+        _cleanupAdController();
+        _resumeAfterAd();
+      }
+    });
+  } catch (e) {
+    // Handle initialization errors
+    print('Error initializing ad video: $e');
+    _cleanupAdController();
+    _resumeAfterAd();
+  }
+}
+
+void _cleanupAdController() {
+  if (_adVideoController != null) {
+    _adVideoController!.removeListener(() {});
+    _adVideoController!.pause();
+    _adVideoController!.dispose();
+    _adVideoController = null;
+  }
+  
+  setState(() {
+    _isAdPlaying = false;
+  });
+}
+
+void _resumeAfterAd() {
+  setState(() {
+    _isAdPlaying = false;
+  });
+  _videoPlayerController.play();
+}
 
   Future<void> _initializeVolume() async {
     // Get current system volume
@@ -780,6 +902,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _chewieController?.dispose();
     _volumeSliderTimer?.cancel();
     _brightnessSliderTimer?.cancel();
+
+     // Clean up ad controller if it exists
+  _cleanupAdController();
     WakelockPlus.disable();
     super.dispose();
   }
