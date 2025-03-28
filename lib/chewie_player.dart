@@ -40,7 +40,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   // Ad-related variables
   bool _isAdPlaying = false;
   bool _isLoadingAd = false;
-  final List<int> _adTimePoints = [1, 30]; // Ad trigger points in seconds
+  final List<int> _adTimePoints = [1, 60]; // Ad trigger points in seconds
   final List<String> _adVideoUrls = [
     'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4', // Video ad for 1-second mark
     'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4' // Video ad for 30-second mark
@@ -53,6 +53,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   String _adRemainingTime = "00:00";
   Timer? _adCountdownTimer;
 
+  // Add these variables to track seeking
+  bool _isSeeking = false;
+  DateTime? _lastSeekTime;
+  // Add a flag to ensure first ad plays correctly
+bool _hasPlayedFirstAd = false;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +67,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _initializeBrightness();
     setupCaptions(); // Load subtitles
     _initializeAdCheck(); // Initialize ad check timer
+
+     // Add this to ensure the first ad plays correctly
+  _scheduleFirstAd();
+  
 
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -72,6 +82,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     WakelockPlus.enable();
   }
 
+  // Function to ensure the first ad plays
+void _scheduleFirstAd() {
+  // Schedule first ad to play once the video starts
+  Future.delayed(const Duration(milliseconds: 1500), () {
+    if (!_hasPlayedFirstAd && mounted && _videoPlayerController.value.isInitialized) {
+      _hasPlayedFirstAd = true;
+      _lastAdPlayedAtSecond = 1;
+      _showVideoAd(0); // Show first ad (index 0)
+    }
+  });
+}
+
   // Initialize periodic ad check
   void _initializeAdCheck() {
     _adCheckTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -79,210 +101,385 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     });
   }
 
-  void _checkAndShowAds() {
-    if (_isAdPlaying ||
-        !_videoPlayerController.value.isInitialized ||
-        !_videoPlayerController.value.isPlaying) {
-      return; // Don't check if ad is playing or video is not playing
-    }
-
-    final currentPositionInSeconds =
-        _videoPlayerController.value.position.inSeconds;
-
-    for (int i = 0; i < _adTimePoints.length; i++) {
-      if (currentPositionInSeconds == _adTimePoints[i] &&
-          _lastAdPlayedAtSecond != _adTimePoints[i]) {
-        _lastAdPlayedAtSecond = _adTimePoints[i];
-        _showVideoAd(i); // Pass index to know which ad to show
-        break;
-      }
-    }
+// Update your checkAndShowAds method with better position tracking
+void _checkAndShowAds() {
+  if (_isAdPlaying || !_videoPlayerController.value.isInitialized || !_videoPlayerController.value.isPlaying) {
+    return; // Don't check if ad is playing or video is not playing
   }
 
-  Future<void> _showVideoAd(int adIndex) async {
-    // Pause the main video
-    _videoPlayerController.pause();
-    setState(() {
-      _isAdPlaying = true;
-      _isLoadingAd = true; // Show loader while ad is loading
-    });
+  // Skip if we're seeking
+  if (_isSeeking) return;
 
-    // Show loading dialog immediately
+  final currentPositionInSeconds = _videoPlayerController.value.position.inSeconds;
+  
+  // Check for each ad trigger point
+  for (int i = 0; i < _adTimePoints.length; i++) {
+    // Use a range check instead of exact position for more reliable triggering
+    bool isNearTriggerPoint = (currentPositionInSeconds >= _adTimePoints[i] && 
+                              currentPositionInSeconds < _adTimePoints[i] + 1);
+                              
+    if (isNearTriggerPoint && _lastAdPlayedAtSecond != _adTimePoints[i]) {
+      print("Triggering ad at position: $currentPositionInSeconds seconds");
+      _lastAdPlayedAtSecond = _adTimePoints[i];
+      _showVideoAd(i);
+      break;
+    }
+  }
+}
+
+Future<void> _showVideoAd(int adIndex) async {
+  // Pause the main video
+  _videoPlayerController.pause();
+  setState(() {
+    _isAdPlaying = true;
+    _isLoadingAd = true;
+  });
+
+  // Show loading immediately
+  BuildContext? dialogContext;
+  showGeneralDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black,
+    transitionDuration: Duration.zero,
+    pageBuilder: (context, animation1, animation2) {
+      dialogContext = context;
+      return WillPopScope(
+        onWillPop: () async => false,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: Colors.white),
+                SizedBox(height: 20),
+                Text("Loading advertisement...", style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  try {
+    // Clean up any existing controller
+    if (_adVideoController != null) {
+      await _adVideoController!.dispose();
+      _adVideoController = null;
+    }
+    
+    // Simply use the URL from your list
+    _adVideoController = VideoPlayerController.network(_adVideoUrls[adIndex]);
+    
+    // Initialize with timeout
+    try {
+      await _adVideoController!.initialize().timeout(Duration(seconds: 10));
+    } catch (timeoutError) {
+      print("Ad initialization timed out");
+      throw Exception("Failed to initialize ad video");
+    }
+    
+    // Get ad duration
+    final int adDurationSeconds = _adVideoController!.value.duration.inSeconds;
+    print("Ad duration: $adDurationSeconds seconds");
+    
+    // Close the loading dialog
+    if (dialogContext != null && Navigator.of(dialogContext!).canPop()) {
+      Navigator.of(dialogContext!).pop();
+    }
+    
+    // Show the ad
+    final ValueNotifier<String> remainingTimeNotifier = ValueNotifier<String>("00:00");
+    
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black,
       transitionDuration: Duration.zero,
-      pageBuilder: (context, animation1, animation2) {
-        // ignore: deprecated_member_use
+      pageBuilder: (newContext, animation1, animation2) {
+        dialogContext = newContext;
         return WillPopScope(
-          // Intercept back button press
-          onWillPop: () async {
-            // Return false to prevent dialog from closing on back button
-            return false;
-          },
+          onWillPop: () async => false,
           child: Scaffold(
-            body: Container(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              color: Colors.black,
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+            backgroundColor: Colors.black,
+            body: Stack(
+              children: [
+                // Video player
+                Positioned.fill(
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: _adVideoController!.value.aspectRatio,
+                      child: VideoPlayer(_adVideoController!),
+                    ),
+                  ),
+                ),
+                
+                // Timer
+                Positioned(
+                  top: 20,
+                  right: 20,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "Ad: ",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        ValueListenableBuilder<String>(
+                          valueListenable: remainingTimeNotifier,
+                          builder: (context, value, child) {
+                            return Text(
+                              value,
+                              style: TextStyle(color: Colors.white),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
       },
     );
-
-    // Initialize ad video controller
-    // ignore: deprecated_member_use
-    _adVideoController = VideoPlayerController.network(
-      _adVideoUrls[adIndex],
-      // formatHint: VideoFormat.hls,
-    );
-
-    try {
-      // Initialize and prepare the ad video
-      await _adVideoController!.initialize();
-
-      // Close the loading dialog
-      Navigator.of(context).pop();
-
-      // Calculate total ad duration and format it
-      int totalSeconds = _adVideoController!.value.duration.inSeconds;
-      _formatAdRemainingTime(totalSeconds);
-
-      // Reset loading state
-      setState(() {
-        _isLoadingAd = false;
-      });
-
-      // Create a separate state controller for the dialog
-      final ValueNotifier<String> remainingTimeNotifier =
-          ValueNotifier<String>(_adRemainingTime);
-
-      // Show the actual ad video with countdown timer
-      showGeneralDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black,
-        transitionDuration: Duration.zero,
-        pageBuilder: (context, animation1, animation2) {
-          return WillPopScope(
-            // Intercept back button press
-            onWillPop: () async {
-              // Return false to prevent dialog from closing on back button
-              return false;
-            },
-            child: Scaffold(
-              body: SafeArea(
-                child: Stack(
-                  children: [
-                    // Ad video
-                    Container(
-                      width: MediaQuery.of(context).size.width,
-                      height: MediaQuery.of(context).size.height,
-                      color: Colors.black,
-                      child: Center(
-                        child: AspectRatio(
-                          aspectRatio: _adVideoController!.value.aspectRatio,
-                          child: VideoPlayer(_adVideoController!),
-                        ),
-                      ),
-                    ),
-
-                    // Ad countdown timer in top-right corner
-                    Positioned(
-                      top: 20,
-                      right: 20,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            const Text(
-                              "Ad: ",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                            ValueListenableBuilder<String>(
-                              valueListenable: remainingTimeNotifier,
-                              builder: (context, value, child) {
-                                return Text(
-                                  value,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      );
-
-      // Start playing after showing the dialog
-      _adVideoController!.play();
-
-      // Start the countdown timer
-      int remainingSeconds = totalSeconds;
-      _adCountdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-        if (remainingSeconds > 0) {
-          remainingSeconds--;
-          _formatAdRemainingTime(remainingSeconds);
-          remainingTimeNotifier.value = _adRemainingTime;
-        } else {
-          timer.cancel();
-        }
-      });
-
-      // Listen for when the ad finishes playing
-      _adVideoController!.addListener(() {
-        if (_adVideoController!.value.position >=
-            _adVideoController!.value.duration) {
-          // Video finished playing naturally
-          if (_isAdPlaying) {
-            Navigator.of(context).pop();
-            _cleanupAdController();
-            _resumeAfterAd();
-          }
-        }
-      });
-
-      // Fallback timer in case the video doesn't finish correctly
-      Timer(const Duration(seconds: 30), () {
-        if (_isAdPlaying) {
-          Navigator.of(context).pop();
-          _cleanupAdController();
-          _resumeAfterAd();
-        }
-      });
-    } catch (e) {
-      // Handle initialization errors
-      print('Error initializing ad video: $e');
-      // Close the loading dialog if it's still showing
-      if (_isLoadingAd) {
-        Navigator.of(context).pop();
-      }
-      _cleanupAdController();
-      _resumeAfterAd();
+    
+    // Play the ad
+    await _adVideoController!.play();
+    
+    // Use the actual ad duration for countdown
+    for (int i = adDurationSeconds; i >= 0; i--) {
+      if (!_isAdPlaying) break;
+      
+      // Format remaining time as MM:SS
+      int minutes = i ~/ 60;
+      int seconds = i % 60;
+      remainingTimeNotifier.value = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+      
+      await Future.delayed(Duration(seconds: 1));
     }
+    
+    // Wait a bit to ensure ad completes
+    await Future.delayed(Duration(seconds: 1));
+    
+    // Close the ad dialog
+    if (dialogContext != null && Navigator.of(dialogContext!).canPop()) {
+      Navigator.of(dialogContext!).pop();
+    }
+    
+    _cleanupAdController();
+    _resumeAfterAd();
+    
+  } catch (e) {
+    print("Error in ad playback: $e");
+    
+    // Close the loading dialog if it's still open
+    if (dialogContext != null && Navigator.of(dialogContext!).canPop()) {
+      Navigator.of(dialogContext!).pop();
+    }
+    
+    _cleanupAdController();
+    _resumeAfterAd();
   }
+}
+
+  // Future<void> _showVideoAd(int adIndex) async {
+  //   // Pause the main video
+  //   _videoPlayerController.pause();
+  //   setState(() {
+  //     _isAdPlaying = true;
+  //     _isLoadingAd = true; // Show loader while ad is loading
+  //   });
+
+  //   // Show loading dialog immediately
+  //   showGeneralDialog(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     barrierColor: Colors.black,
+  //     transitionDuration: Duration.zero,
+  //     pageBuilder: (context, animation1, animation2) {
+  //       // ignore: deprecated_member_use
+  //       return WillPopScope(
+  //         // Intercept back button press
+  //         onWillPop: () async {
+  //           // Return false to prevent dialog from closing on back button
+  //           return false;
+  //         },
+  //         child: Scaffold(
+  //           body: Container(
+  //             width: MediaQuery.of(context).size.width,
+  //             height: MediaQuery.of(context).size.height,
+  //             color: Colors.black,
+  //             child: const Center(
+  //               child: CircularProgressIndicator(),
+  //             ),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+
+  //   // Initialize ad video controller
+  //   // ignore: deprecated_member_use
+  //   _adVideoController = VideoPlayerController.network(
+  //     _adVideoUrls[adIndex],
+  //     // formatHint: VideoFormat.hls,
+  //   );
+
+  //   try {
+  //     // Initialize and prepare the ad video
+  //     await _adVideoController!.initialize();
+
+  //     // Close the loading dialog
+  //     Navigator.of(context).pop();
+
+  //     // Calculate total ad duration and format it
+  //     int totalSeconds = _adVideoController!.value.duration.inSeconds;
+  //     _formatAdRemainingTime(totalSeconds);
+
+  //     // Reset loading state
+  //     setState(() {
+  //       _isLoadingAd = false;
+  //     });
+
+  //     // Create a separate state controller for the dialog
+  //     final ValueNotifier<String> remainingTimeNotifier =
+  //         ValueNotifier<String>(_adRemainingTime);
+
+  //     // Show the actual ad video with countdown timer
+  //     showGeneralDialog(
+  //       context: context,
+  //       barrierDismissible: false,
+  //       barrierColor: Colors.black,
+  //       transitionDuration: Duration.zero,
+  //       pageBuilder: (context, animation1, animation2) {
+  //         // ignore: deprecated_member_use
+  //         return WillPopScope(
+  //           // Intercept back button press
+  //           onWillPop: () async {
+  //             // Return false to prevent dialog from closing on back button
+  //             return false;
+  //           },
+  //           child: Scaffold(
+  //             body: SafeArea(
+  //               child: Stack(
+  //                 children: [
+  //                   // Ad video
+  //                   Container(
+  //                     width: MediaQuery.of(context).size.width,
+  //                     height: MediaQuery.of(context).size.height,
+  //                     color: Colors.black,
+  //                     child: Center(
+  //                       child: AspectRatio(
+  //                         aspectRatio: _adVideoController!.value.aspectRatio,
+  //                         child: VideoPlayer(_adVideoController!),
+  //                       ),
+  //                     ),
+  //                   ),
+
+  //                   // Ad countdown timer in top-right corner
+  //                   Positioned(
+  //                     top: 20,
+  //                     right: 20,
+  //                     child: Container(
+  //                       padding: const EdgeInsets.symmetric(
+  //                           horizontal: 12, vertical: 6),
+  //                       decoration: BoxDecoration(
+  //                         color: Colors.black.withOpacity(0.7),
+  //                         borderRadius: BorderRadius.circular(4),
+  //                       ),
+  //                       child: Row(
+  //                         children: [
+  //                           const Text(
+  //                             "Ad: ",
+  //                             style: TextStyle(
+  //                               color: Colors.white,
+  //                               fontSize: 14,
+  //                             ),
+  //                           ),
+  //                           ValueListenableBuilder<String>(
+  //                             valueListenable: remainingTimeNotifier,
+  //                             builder: (context, value, child) {
+  //                               return Text(
+  //                                 value,
+  //                                 style: const TextStyle(
+  //                                   color: Colors.white,
+  //                                   fontSize: 14,
+  //                                 ),
+  //                               );
+  //                             },
+  //                           ),
+  //                         ],
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ),
+  //         );
+  //       },
+  //     );
+
+  //     // Start playing after showing the dialog
+  //     _adVideoController!.play();
+
+  //     // Start the countdown timer
+  //     int remainingSeconds = totalSeconds;
+  //     _adCountdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+  //       if (remainingSeconds > 0) {
+  //         remainingSeconds--;
+  //         _formatAdRemainingTime(remainingSeconds);
+  //         remainingTimeNotifier.value = _adRemainingTime;
+  //       } else {
+  //         timer.cancel();
+  //       }
+  //     });
+
+  //     // Listen for when the ad finishes playing
+  //     _adVideoController!.addListener(() {
+  //       if (_adVideoController!.value.position >=
+  //           _adVideoController!.value.duration) {
+  //         // Video finished playing naturally
+  //         if (_isAdPlaying) {
+  //           Navigator.of(context).pop();
+  //           _cleanupAdController();
+  //           _resumeAfterAd();
+  //         }
+  //       }
+  //     });
+
+  //     // Fallback timer in case the video doesn't finish correctly
+  //     Timer(const Duration(seconds: 30), () {
+  //       if (_isAdPlaying) {
+  //         Navigator.of(context).pop();
+  //         _cleanupAdController();
+  //         _resumeAfterAd();
+  //       }
+  //     });
+  //   } catch (e) {
+  //     // Handle initialization errors
+  //     print('Error initializing ad video: $e');
+  //     // Close the loading dialog if it's still showing
+  //     if (_isLoadingAd) {
+  //       Navigator.of(context).pop();
+  //     }
+  //     _cleanupAdController();
+  //     _resumeAfterAd();
+  //   }
+  // }
 
 // Format seconds into MM:SS format
   void _formatAdRemainingTime(int seconds) {
@@ -360,9 +557,41 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     // Add this position listener to update the UI when video position changes
     _videoPlayerController.addListener(_updatePosition);
 
+    // Add listener for seek operations
+    _videoPlayerController.addListener(_detectSeek);
+
     _createChewieController();
 
     setState(() {});
+  }
+
+  // Previous position to detect seeking
+  Duration _previousPosition = Duration.zero;
+
+// Detect when the user is seeking
+  void _detectSeek() {
+    if (!_videoPlayerController.value.isInitialized) return;
+
+    // Calculate the difference between current and previous position
+    final currentPosition = _videoPlayerController.value.position;
+    final difference =
+        (currentPosition - _previousPosition).inMilliseconds.abs();
+
+    // If the position changed by more than 1 second and not by normal playback,
+    // consider it a seek operation
+    if (difference > 1000 && !_videoPlayerController.value.isBuffering) {
+      // Mark that we're seeking and track the time
+      _isSeeking = true;
+      _lastSeekTime = DateTime.now();
+
+      // Reset seeking flag after a short delay
+      Future.delayed(Duration(milliseconds: 500), () {
+        _isSeeking = false;
+      });
+    }
+
+    // Update previous position
+    _previousPosition = currentPosition;
   }
 
   void _updatePosition() {
@@ -1043,6 +1272,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _chewieController?.dispose();
     _volumeSliderTimer?.cancel();
     _brightnessSliderTimer?.cancel();
+
+    _videoPlayerController.removeListener(_subtitleSync);
+    _videoPlayerController.removeListener(_detectSeek); // Remove seek listener
 
     // Clean up ad controller if it exists
     _cleanupAdController();
