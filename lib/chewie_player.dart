@@ -129,7 +129,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     // Initialize ad video controller
     // ignore: deprecated_member_use
-    _adVideoController = VideoPlayerController.network(_adVideoUrls[adIndex]);
+    _adVideoController = VideoPlayerController.network(
+      _adVideoUrls[adIndex],
+      // formatHint: VideoFormat.hls,
+
+    );
 
     try {
       // Initialize and prepare the ad video
@@ -174,13 +178,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       ),
                     ),
                   ),
-            
+
                   // Ad countdown timer in top-right corner
                   Positioned(
                     top: 20,
                     right: 20,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(4),
