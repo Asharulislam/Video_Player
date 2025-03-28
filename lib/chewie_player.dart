@@ -49,6 +49,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   int? _lastAdPlayedAtSecond;
   Timer? _adCheckTimer;
 
+// Add these variables to your state class
+  String _adRemainingTime = "00:00";
+  Timer? _adCountdownTimer;
+
   @override
   void initState() {
     super.initState();
@@ -95,7 +99,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
-
   Future<void> _showVideoAd(int adIndex) async {
     // Pause the main video
     _videoPlayerController.pause();
@@ -111,8 +114,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       barrierColor: Colors.black,
       transitionDuration: Duration.zero,
       pageBuilder: (context, animation1, animation2) {
-        return SafeArea(
-          child: Container(
+        return Scaffold(
+          body: Container(
             width: MediaQuery.of(context).size.width,
             height: MediaQuery.of(context).size.height,
             color: Colors.black,
@@ -135,28 +138,79 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       // Close the loading dialog
       Navigator.of(context).pop();
 
+      // Calculate total ad duration and format it
+      int totalSeconds = _adVideoController!.value.duration.inSeconds;
+      _formatAdRemainingTime(totalSeconds);
+
       // Reset loading state
       setState(() {
         _isLoadingAd = false;
       });
 
-      // Show the actual ad video
+      // Create a separate state controller for the dialog
+      final ValueNotifier<String> remainingTimeNotifier =
+          ValueNotifier<String>(_adRemainingTime);
+
+      // Show the actual ad video with countdown timer
       showGeneralDialog(
         context: context,
         barrierDismissible: false,
         barrierColor: Colors.black,
         transitionDuration: Duration.zero,
         pageBuilder: (context, animation1, animation2) {
-          return SafeArea(
-            child: Container(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              color: Colors.black,
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: _adVideoController!.value.aspectRatio,
-                  child: VideoPlayer(_adVideoController!),
-                ),
+          return Scaffold(
+            body: SafeArea(
+              child: Stack(
+                children: [
+                  // Ad video
+                  Container(
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.height,
+                    color: Colors.black,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: _adVideoController!.value.aspectRatio,
+                        child: VideoPlayer(_adVideoController!),
+                      ),
+                    ),
+                  ),
+            
+                  // Ad countdown timer in top-right corner
+                  Positioned(
+                    top: 20,
+                    right: 20,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text(
+                            "Ad: ",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                          ValueListenableBuilder<String>(
+                            valueListenable: remainingTimeNotifier,
+                            builder: (context, value, child) {
+                              return Text(
+                                value,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -165,6 +219,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       // Start playing after showing the dialog
       _adVideoController!.play();
+
+      // Start the countdown timer
+      int remainingSeconds = totalSeconds;
+      _adCountdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+        if (remainingSeconds > 0) {
+          remainingSeconds--;
+          _formatAdRemainingTime(remainingSeconds);
+          remainingTimeNotifier.value = _adRemainingTime;
+        } else {
+          timer.cancel();
+        }
+      });
 
       // Listen for when the ad finishes playing
       _adVideoController!.addListener(() {
@@ -199,7 +265,19 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+// Format seconds into MM:SS format
+  void _formatAdRemainingTime(int seconds) {
+    int minutes = seconds ~/ 60;
+    int remainingSeconds = seconds % 60;
+    _adRemainingTime =
+        '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
   void _cleanupAdController() {
+    // Cancel the countdown timer
+    _adCountdownTimer?.cancel();
+    _adCountdownTimer = null;
+
     if (_adVideoController != null) {
       _adVideoController!.removeListener(() {});
       _adVideoController!.pause();
@@ -210,6 +288,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     setState(() {
       _isAdPlaying = false;
       _isLoadingAd = false;
+      _adRemainingTime = "00:00";
     });
   }
 
