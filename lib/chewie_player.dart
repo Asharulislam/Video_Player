@@ -37,17 +37,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Subtitle? _currentSubtitle;
   bool _subtitlesEnabled = true;
 
-
   // Ad-related variables
-bool _isAdPlaying = false;
-final List<int> _adTimePoints = [1, 30]; // Ad trigger points in seconds
-final List<String> _adVideoUrls = [
-  'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4',  // Video ad for 1-second mark
-  'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4'   // Video ad for 30-second mark
-];
-VideoPlayerController? _adVideoController;
-int? _lastAdPlayedAtSecond;
-Timer? _adCheckTimer;
+  bool _isAdPlaying = false;
+  bool _isLoadingAd = false;
+  final List<int> _adTimePoints = [1, 30]; // Ad trigger points in seconds
+  final List<String> _adVideoUrls = [
+    'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4', // Video ad for 1-second mark
+    'https://static.videezy.com/system/resources/previews/000/048/091/original/Countdown8.mp4' // Video ad for 30-second mark
+  ];
+  VideoPlayerController? _adVideoController;
+  int? _lastAdPlayedAtSecond;
+  Timer? _adCheckTimer;
 
   @override
   void initState() {
@@ -69,44 +69,42 @@ Timer? _adCheckTimer;
   }
 
   // Initialize periodic ad check
-void _initializeAdCheck() {
-  _adCheckTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-    _checkAndShowAds();
-  });
-}
-
-void _checkAndShowAds() {
-  if (_isAdPlaying || !_videoPlayerController.value.isInitialized || !_videoPlayerController.value.isPlaying) {
-    return; // Don't check if ad is playing or video is not playing
+  void _initializeAdCheck() {
+    _adCheckTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _checkAndShowAds();
+    });
   }
 
-  final currentPositionInSeconds = _videoPlayerController.value.position.inSeconds;
-  
-  for (int i = 0; i < _adTimePoints.length; i++) {
-    if (currentPositionInSeconds == _adTimePoints[i] && _lastAdPlayedAtSecond != _adTimePoints[i]) {
-      _lastAdPlayedAtSecond = _adTimePoints[i];
-      _showVideoAd(i); // Pass index to know which ad to show
-      break;
+  void _checkAndShowAds() {
+    if (_isAdPlaying ||
+        !_videoPlayerController.value.isInitialized ||
+        !_videoPlayerController.value.isPlaying) {
+      return; // Don't check if ad is playing or video is not playing
+    }
+
+    final currentPositionInSeconds =
+        _videoPlayerController.value.position.inSeconds;
+
+    for (int i = 0; i < _adTimePoints.length; i++) {
+      if (currentPositionInSeconds == _adTimePoints[i] &&
+          _lastAdPlayedAtSecond != _adTimePoints[i]) {
+        _lastAdPlayedAtSecond = _adTimePoints[i];
+        _showVideoAd(i); // Pass index to know which ad to show
+        break;
+      }
     }
   }
-}
 
-Future<void> _showVideoAd(int adIndex) async {
-  // Pause the main video
-  _videoPlayerController.pause();
-  setState(() {
-    _isAdPlaying = true;
-  });
 
-  // Initialize ad video controller
-  _adVideoController = VideoPlayerController.network(_adVideoUrls[adIndex]);
-  
-  try {
-    // Initialize and start the ad video
-    await _adVideoController!.initialize();
-    _adVideoController!.play();
-    
-    // Show ad in full screen using dialog
+  Future<void> _showVideoAd(int adIndex) async {
+    // Pause the main video
+    _videoPlayerController.pause();
+    setState(() {
+      _isAdPlaying = true;
+      _isLoadingAd = true; // Show loader while ad is loading
+    });
+
+    // Show loading dialog immediately
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
@@ -118,64 +116,109 @@ Future<void> _showVideoAd(int adIndex) async {
             width: MediaQuery.of(context).size.width,
             height: MediaQuery.of(context).size.height,
             color: Colors.black,
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: _adVideoController!.value.aspectRatio,
-                child: VideoPlayer(_adVideoController!),
-              ),
+            child: const Center(
+              child: CircularProgressIndicator(),
             ),
           ),
         );
       },
     );
 
-    // Listen for when the ad finishes playing
-    _adVideoController!.addListener(() {
-      if (_adVideoController!.value.position >= _adVideoController!.value.duration) {
-        // Video finished playing naturally
+    // Initialize ad video controller
+    // ignore: deprecated_member_use
+    _adVideoController = VideoPlayerController.network(_adVideoUrls[adIndex]);
+
+    try {
+      // Initialize and prepare the ad video
+      await _adVideoController!.initialize();
+
+      // Close the loading dialog
+      Navigator.of(context).pop();
+
+      // Reset loading state
+      setState(() {
+        _isLoadingAd = false;
+      });
+
+      // Show the actual ad video
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black,
+        transitionDuration: Duration.zero,
+        pageBuilder: (context, animation1, animation2) {
+          return SafeArea(
+            child: Container(
+              width: MediaQuery.of(context).size.width,
+              height: MediaQuery.of(context).size.height,
+              color: Colors.black,
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: _adVideoController!.value.aspectRatio,
+                  child: VideoPlayer(_adVideoController!),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      // Start playing after showing the dialog
+      _adVideoController!.play();
+
+      // Listen for when the ad finishes playing
+      _adVideoController!.addListener(() {
+        if (_adVideoController!.value.position >=
+            _adVideoController!.value.duration) {
+          // Video finished playing naturally
+          if (_isAdPlaying) {
+            Navigator.of(context).pop();
+            _cleanupAdController();
+            _resumeAfterAd();
+          }
+        }
+      });
+
+      // Fallback timer in case the video doesn't finish correctly
+      Timer(const Duration(seconds: 30), () {
         if (_isAdPlaying) {
           Navigator.of(context).pop();
           _cleanupAdController();
           _resumeAfterAd();
         }
-      }
-    });
-
-    // Fallback timer in case the video doesn't finish correctly
-    Timer(const Duration(seconds: 30), () {
-      if (_isAdPlaying) {
+      });
+    } catch (e) {
+      // Handle initialization errors
+      print('Error initializing ad video: $e');
+      // Close the loading dialog if it's still showing
+      if (_isLoadingAd) {
         Navigator.of(context).pop();
-        _cleanupAdController();
-        _resumeAfterAd();
       }
+      _cleanupAdController();
+      _resumeAfterAd();
+    }
+  }
+
+  void _cleanupAdController() {
+    if (_adVideoController != null) {
+      _adVideoController!.removeListener(() {});
+      _adVideoController!.pause();
+      _adVideoController!.dispose();
+      _adVideoController = null;
+    }
+
+    setState(() {
+      _isAdPlaying = false;
+      _isLoadingAd = false;
     });
-  } catch (e) {
-    // Handle initialization errors
-    print('Error initializing ad video: $e');
-    _cleanupAdController();
-    _resumeAfterAd();
   }
-}
 
-void _cleanupAdController() {
-  if (_adVideoController != null) {
-    _adVideoController!.removeListener(() {});
-    _adVideoController!.pause();
-    _adVideoController!.dispose();
-    _adVideoController = null;
+  void _resumeAfterAd() {
+    setState(() {
+      _isAdPlaying = false;
+    });
+    _videoPlayerController.play();
   }
-  
-  setState(() {
-    _isAdPlaying = false;
-  });
-}
-
-void _resumeAfterAd() {
-  setState(() {
-    _isAdPlaying = false;
-  });
-  _videoPlayerController.play();
-}
 
   Future<void> _initializeVolume() async {
     // Get current system volume
@@ -903,8 +946,8 @@ void _resumeAfterAd() {
     _volumeSliderTimer?.cancel();
     _brightnessSliderTimer?.cancel();
 
-     // Clean up ad controller if it exists
-  _cleanupAdController();
+    // Clean up ad controller if it exists
+    _cleanupAdController();
     WakelockPlus.disable();
     super.dispose();
   }
