@@ -114,13 +114,21 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       barrierColor: Colors.black,
       transitionDuration: Duration.zero,
       pageBuilder: (context, animation1, animation2) {
-        return Scaffold(
-          body: Container(
-            width: MediaQuery.of(context).size.width,
-            height: MediaQuery.of(context).size.height,
-            color: Colors.black,
-            child: const Center(
-              child: CircularProgressIndicator(),
+        // ignore: deprecated_member_use
+        return WillPopScope(
+          // Intercept back button press
+          onWillPop: () async {
+            // Return false to prevent dialog from closing on back button
+            return false;
+          },
+          child: Scaffold(
+            body: Container(
+              width: MediaQuery.of(context).size.width,
+              height: MediaQuery.of(context).size.height,
+              color: Colors.black,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
             ),
           ),
         );
@@ -132,7 +140,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     _adVideoController = VideoPlayerController.network(
       _adVideoUrls[adIndex],
       // formatHint: VideoFormat.hls,
-
     );
 
     try {
@@ -162,60 +169,67 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         barrierColor: Colors.black,
         transitionDuration: Duration.zero,
         pageBuilder: (context, animation1, animation2) {
-          return Scaffold(
-            body: SafeArea(
-              child: Stack(
-                children: [
-                  // Ad video
-                  Container(
-                    width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.height,
-                    color: Colors.black,
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: _adVideoController!.value.aspectRatio,
-                        child: VideoPlayer(_adVideoController!),
+          return WillPopScope(
+            // Intercept back button press
+            onWillPop: () async {
+              // Return false to prevent dialog from closing on back button
+              return false;
+            },
+            child: Scaffold(
+              body: SafeArea(
+                child: Stack(
+                  children: [
+                    // Ad video
+                    Container(
+                      width: MediaQuery.of(context).size.width,
+                      height: MediaQuery.of(context).size.height,
+                      color: Colors.black,
+                      child: Center(
+                        child: AspectRatio(
+                          aspectRatio: _adVideoController!.value.aspectRatio,
+                          child: VideoPlayer(_adVideoController!),
+                        ),
                       ),
                     ),
-                  ),
 
-                  // Ad countdown timer in top-right corner
-                  Positioned(
-                    top: 20,
-                    right: 20,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        children: [
-                          const Text(
-                            "Ad: ",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
+                    // Ad countdown timer in top-right corner
+                    Positioned(
+                      top: 20,
+                      right: 20,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text(
+                              "Ad: ",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                             ),
-                          ),
-                          ValueListenableBuilder<String>(
-                            valueListenable: remainingTimeNotifier,
-                            builder: (context, value, child) {
-                              return Text(
-                                value,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
+                            ValueListenableBuilder<String>(
+                              valueListenable: remainingTimeNotifier,
+                              builder: (context, value, child) {
+                                return Text(
+                                  value,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
