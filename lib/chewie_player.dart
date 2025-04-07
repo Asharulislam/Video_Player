@@ -24,8 +24,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Timer? _materialControllesTimer;
   double _brightness = 0.5;
   double _volume = 0.5;
-  double _scale = 1.0;
-  double _initialScale = 1.0;
+
 
   Timer? _volumeSliderTimer;
   Timer? _brightnessSliderTimer;
@@ -60,6 +59,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool _hasPlayedFirstAd = false;
 
   bool _isBuffering = false;
+  bool _isFitToScreen = false; // Add this new variable
 
   @override
   void initState() {
@@ -83,58 +83,56 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     WakelockPlus.enable();
   }
 
- // Replace your _scheduleFirstAd method with this improved version:
+  // Replace your _scheduleFirstAd method with this improved version:
 
-void _scheduleFirstAd() {
-  // Make sure we don't try to show ad until video is ready
-  // Use a more reliable approach with multiple checks
-  bool firstAdAttempted = false;
-  
-  // Create a dedicated listener for first ad
-  void firstAdListener() {
-    // Only proceed if we haven't already attempted to show the first ad
-    if (!firstAdAttempted && 
-        mounted && 
-        _videoPlayerController.value.isInitialized &&
-        _videoPlayerController.value.isPlaying) {
-      
-      // Mark that we've attempted to show the first ad
-      firstAdAttempted = true;
-      
-      // Remove this listener since we only need it once
-      _videoPlayerController.removeListener(firstAdListener);
-      
-      // Short delay to ensure everything is ready
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          _hasPlayedFirstAd = true;
-          _lastAdPlayedAtSecond = 1;
-          _showVideoAd(0); // Show first ad (index 0)
-          print("Showing first ad");
-        }
-      });
+  void _scheduleFirstAd() {
+    // Make sure we don't try to show ad until video is ready
+    // Use a more reliable approach with multiple checks
+    bool firstAdAttempted = false;
+
+    // Create a dedicated listener for first ad
+    void firstAdListener() {
+      // Only proceed if we haven't already attempted to show the first ad
+      if (!firstAdAttempted &&
+          mounted &&
+          _videoPlayerController.value.isInitialized &&
+          _videoPlayerController.value.isPlaying) {
+        // Mark that we've attempted to show the first ad
+        firstAdAttempted = true;
+
+        // Remove this listener since we only need it once
+        _videoPlayerController.removeListener(firstAdListener);
+
+        // Short delay to ensure everything is ready
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _hasPlayedFirstAd = true;
+            _lastAdPlayedAtSecond = 1;
+            _showVideoAd(0); // Show first ad (index 0)
+            print("Showing first ad");
+          }
+        });
+      }
     }
+
+    // Add the listener
+    _videoPlayerController.addListener(firstAdListener);
+
+    // Set a fallback timer in case the listener doesn't trigger
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!firstAdAttempted &&
+          mounted &&
+          _videoPlayerController.value.isInitialized) {
+        firstAdAttempted = true;
+        _videoPlayerController.removeListener(firstAdListener);
+
+        _hasPlayedFirstAd = true;
+        _lastAdPlayedAtSecond = 1;
+        _showVideoAd(0);
+        print("Showing first ad (fallback timer)");
+      }
+    });
   }
-  
-  // Add the listener
-  _videoPlayerController.addListener(firstAdListener);
-  
-  // Set a fallback timer in case the listener doesn't trigger
-  Future.delayed(const Duration(seconds: 3), () {
-    if (!firstAdAttempted && 
-        mounted && 
-        _videoPlayerController.value.isInitialized) {
-      
-      firstAdAttempted = true;
-      _videoPlayerController.removeListener(firstAdListener);
-      
-      _hasPlayedFirstAd = true;
-      _lastAdPlayedAtSecond = 1;
-      _showVideoAd(0);
-      print("Showing first ad (fallback timer)");
-    }
-  });
-}
 
   // Initialize periodic ad check
   void _initializeAdCheck() {
@@ -193,7 +191,7 @@ void _scheduleFirstAd() {
         // ignore: deprecated_member_use
         return WillPopScope(
           onWillPop: () async => false,
-          child: Scaffold(
+          child: const Scaffold(
             backgroundColor: Colors.black,
             body: Center(
               child: Column(
@@ -281,8 +279,8 @@ void _scheduleFirstAd() {
                         Text(
                             "Retrying to load ad (${retryCount}/$maxRetries)...",
                             style: TextStyle(color: Colors.white)),
-                        SizedBox(height: 10),
-                        Text("Slow network detected",
+                        const SizedBox(height: 10),
+                        const Text("Slow network detected",
                             style:
                                 TextStyle(color: Colors.white70, fontSize: 12)),
                       ],
@@ -388,7 +386,8 @@ void _scheduleFirstAd() {
                     top: 15,
                     left: 10,
                     child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                      icon: const Icon(Icons.close,
+                          color: Colors.white, size: 24),
                       onPressed: () {
                         // Close ad dialog
                         Navigator.of(context).pop();
@@ -540,194 +539,6 @@ void _scheduleFirstAd() {
       });
     }
   }
-
-  // Future<void> _showVideoAd(int adIndex) async {
-  //   // Pause the main video
-  //   _videoPlayerController.pause();
-  //   setState(() {
-  //     _isAdPlaying = true;
-  //     _isLoadingAd = true;
-  //   });
-
-  //   // Show loading immediately
-  //   BuildContext? dialogContext;
-  //   showGeneralDialog(
-  //     context: context,
-  //     barrierDismissible: false,
-  //     barrierColor: Colors.black,
-  //     transitionDuration: Duration.zero,
-  //     pageBuilder: (context, animation1, animation2) {
-  //       dialogContext = context;
-  //       // ignore: deprecated_member_use
-  //       return WillPopScope(
-  //         onWillPop: () async => false,
-  //         child: const Scaffold(
-  //           backgroundColor: Colors.black,
-  //           body: Center(
-  //             child: Column(
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: [
-  //                 CircularProgressIndicator(color: Colors.white),
-  //                 SizedBox(height: 20),
-  //                 Text("Loading advertisement...",
-  //                     style: TextStyle(color: Colors.white)),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   );
-
-  //   try {
-  //     // Clean up any existing controller
-  //     if (_adVideoController != null) {
-  //       await _adVideoController!.dispose();
-  //       _adVideoController = null;
-  //     }
-
-  //     // Simply use the URL from your list
-  //     _adVideoController = VideoPlayerController.network(_adVideoUrls[adIndex]);
-
-  //     // Add buffering listener for ad
-  //     _adVideoController!.addListener(() {
-  //       if (!mounted) return;
-  //       final isBuffering = !_adVideoController!.value.isPlaying &&
-  //           _adVideoController!.value.isBuffering;
-  //       if (isBuffering != _isBuffering) {
-  //         setState(() {
-  //           _isBuffering = isBuffering;
-  //         });
-  //       }
-  //     });
-
-  //     // Initialize with timeout
-  //     try {
-  //       await _adVideoController!.initialize().timeout(Duration(seconds: 10));
-  //     } catch (timeoutError) {
-  //       print("Ad initialization timed out");
-  //       throw Exception("Failed to initialize ad video");
-  //     }
-
-  //     // Get ad duration
-  //     final int adDurationSeconds =
-  //         _adVideoController!.value.duration.inSeconds;
-  //     print("Ad duration: $adDurationSeconds seconds");
-
-  //     // Close the loading dialog
-  //     if (dialogContext != null && Navigator.of(dialogContext!).canPop()) {
-  //       Navigator.of(dialogContext!).pop();
-  //     }
-
-  //     // Show the ad
-  //     final ValueNotifier<String> remainingTimeNotifier =
-  //         ValueNotifier<String>("00:00");
-
-  //     showGeneralDialog(
-  //       context: context,
-  //       barrierDismissible: false,
-  //       barrierColor: Colors.black,
-  //       transitionDuration: Duration.zero,
-  //       pageBuilder: (newContext, animation1, animation2) {
-  //         dialogContext = newContext;
-  //         // ignore: deprecated_member_use
-  //         return WillPopScope(
-  //           onWillPop: () async => false,
-  //           child: Scaffold(
-  //             backgroundColor: Colors.black,
-  //             body: Stack(
-  //               children: [
-  //                 // Video player
-  //                 Positioned.fill(
-  //                   child: Center(
-  //                     child: AspectRatio(
-  //                       aspectRatio: _adVideoController!.value.aspectRatio,
-  //                       child: VideoPlayer(_adVideoController!),
-  //                     ),
-  //                   ),
-  //                 ),
-
-  //                 // Timer
-  //                 Positioned(
-  //                   top: 20,
-  //                   right: 20,
-  //                   child: Container(
-  //                     padding: const EdgeInsets.symmetric(
-  //                         horizontal: 12, vertical: 6),
-  //                     decoration: BoxDecoration(
-  //                       color: Colors.black.withOpacity(0.7),
-  //                       borderRadius: BorderRadius.circular(4),
-  //                     ),
-  //                     child: Row(
-  //                       mainAxisSize: MainAxisSize.min,
-  //                       children: [
-  //                         const Text(
-  //                           "Ad: ",
-  //                           style: TextStyle(
-  //                             color: Colors.white,
-  //                             fontWeight: FontWeight.bold,
-  //                           ),
-  //                         ),
-  //                         ValueListenableBuilder<String>(
-  //                           valueListenable: remainingTimeNotifier,
-  //                           builder: (context, value, child) {
-  //                             return Text(
-  //                               value,
-  //                               style: const TextStyle(color: Colors.white),
-  //                             );
-  //                           },
-  //                         ),
-  //                       ],
-  //                     ),
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         );
-  //       },
-  //     );
-
-  //     // Play the ad
-  //     await _adVideoController!.play();
-
-  //     // Use the actual ad duration for countdown
-  //     for (int i = adDurationSeconds; i >= 0; i--) {
-  //       if (!_isAdPlaying) break;
-
-  //       // Format remaining time as MM:SS
-  //       int minutes = i ~/ 60;
-  //       int seconds = i % 60;
-  //       remainingTimeNotifier.value =
-  //           '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-
-  //       await Future.delayed(const Duration(seconds: 1));
-  //     }
-
-  //     // Wait a bit to ensure ad completes
-  //     await Future.delayed(const Duration(seconds: 1));
-
-  //     // Close the ad dialog
-
-  //     if (dialogContext != null && Navigator.of(dialogContext!).canPop()) {
-  //       // ignore: use_build_context_synchronously
-  //       Navigator.of(dialogContext!).pop();
-  //     }
-
-  //     _cleanupAdController();
-  //     _resumeAfterAd();
-  //   } catch (e) {
-  //     print("Error in ad playback: $e");
-
-  //     // Close the loading dialog if it's still open
-  //     if (dialogContext != null && Navigator.of(dialogContext!).canPop()) {
-  //       Navigator.of(dialogContext!).pop();
-  //     }
-
-  //     _cleanupAdController();
-  //     _resumeAfterAd();
-  //   }
-  // }
 
   void _resumeAfterAd() {
     setState(() {
@@ -1096,6 +907,13 @@ void _scheduleFirstAd() {
     });
   }
 
+  // Add this method to toggle between aspect ratio and fill screen
+  void toggleFitToScreen() {
+    setState(() {
+      _isFitToScreen = !_isFitToScreen;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1227,27 +1045,12 @@ void _scheduleFirstAd() {
     );
   }
 
+
+// Then modify your _buildZoomableVideoOnly() method:
   Widget _buildZoomableVideoOnly() {
-    // Get the original aspect ratio
-    final aspectRatio = _videoPlayerController.value.aspectRatio;
+    final videoAspectRatio = _videoPlayerController.value.aspectRatio;
 
     return GestureDetector(
-      // Only detect scale gestures (pinch to zoom)
-      onScaleStart: !_isScreenLocked
-          ? (ScaleStartDetails details) {
-              // Store initial scale when gesture starts
-              _initialScale = _scale;
-            }
-          : null,
-      onScaleUpdate: !_isScreenLocked
-          ? (ScaleUpdateDetails details) {
-              setState(() {
-                // Update scale based on gesture, starting from initial scale
-                _scale = (_initialScale * details.scale).clamp(1.0, 3.0);
-              });
-            }
-          : null,
-      // Detect tap to show/hide controls, but don't affect zoom
       onTap: () {
         if (!_isScreenLocked) {
           _resetSliderAndButtonsVisiblity();
@@ -1256,31 +1059,37 @@ void _scheduleFirstAd() {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Black background container to maintain proper sizing
-          AspectRatio(
-            aspectRatio: aspectRatio,
-            child: Container(color: Colors.black),
+          // Video container with proper aspect ratio or fit to screen
+          Center(
+            child: _isFitToScreen
+                ? SizedBox.expand(
+                    // This will expand to fill the available space
+                    child: FittedBox(
+                      fit: BoxFit
+                          .cover, // This makes the video cover the entire space
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.width /
+                            videoAspectRatio,
+                        child: VideoPlayer(_videoPlayerController),
+                      ),
+                    ),
+                  )
+                : AspectRatio(
+                    // Original aspect ratio
+                    aspectRatio: videoAspectRatio,
+                    child: ClipRect(
+                      child: VideoPlayer(_videoPlayerController),
+                    ),
+                  ),
           ),
 
-          // Zoomable video layer
-          ClipRect(
-            child: Transform.scale(
-              scale: _scale,
-              child: SizedBox(
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.width / aspectRatio,
-                child: VideoPlayer(_videoPlayerController),
-              ),
-            ),
-          ),
-
-          // Non-zoomable Chewie controls layer (invisible)
+          // Invisible controls layer
           Positioned.fill(
             child: IgnorePointer(
-              // This ignores pointer events so they go to the gesture detector
               ignoring: true,
               child: Opacity(
-                opacity: 0.0, // Make this invisible
+                opacity: 0.0,
                 child: Chewie(controller: _chewieController!),
               ),
             ),
@@ -1477,6 +1286,17 @@ void _scheduleFirstAd() {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // Add the fit to screen button
+                IconButton(
+                  icon: Icon(
+                    _isFitToScreen ? Icons.fit_screen : Icons.aspect_ratio,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    toggleFitToScreen();
+                  },
+                ),
                 IconButton(
                   icon: Icon(
                     _subtitlesEnabled ? Icons.subtitles : Icons.subtitles_off,
